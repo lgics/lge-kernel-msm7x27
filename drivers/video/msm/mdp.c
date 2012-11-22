@@ -1044,11 +1044,10 @@ static void configure_mdp_core_clk_table(uint32 min_clk_rate)
 {
 	uint8 count;
 	uint32 current_rate;
-	if (mdp_clk && mdp_pdata
-		&& mdp_pdata->mdp_core_clk_table) {
-		if (clk_set_min_rate(mdp_clk,
-				 min_clk_rate) < 0)
-			printk(KERN_ERR "%s: clk_set_min_rate failed\n",
+	if (mdp_clk && mdp_pdata && mdp_pdata->mdp_core_clk_table) {
+		min_clk_rate = clk_round_rate(mdp_clk, min_clk_rate);
+		if (clk_set_rate(mdp_clk, min_clk_rate) < 0)
+			printk(KERN_ERR "%s: clk_set_rate failed\n",
 							 __func__);
 		else {
 			count = 0;
@@ -1367,6 +1366,8 @@ static int mdp_probe(struct platform_device *pdev)
 			if_no = SECONDARY_INTF_SEL;
 			mfd->dma = &dma_s_data;
 		}
+		mfd->lut_update = mdp_lut_update_nonlcdc;
+		mfd->do_histogram = mdp_do_histogram;
 		mdp4_display_intf_sel(if_no, DSI_CMD_INTF);
 
 		mdp_config_vsync(mfd);

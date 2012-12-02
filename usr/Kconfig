@@ -63,15 +63,6 @@ config RD_BZIP2
 	  Support loading of a bzip2 encoded initial ramdisk or cpio buffer
 	  If unsure, say N.
 
-config RD_LZMA
-	bool "Support initial ramdisks compressed using LZMA" if EMBEDDED
-	default !EMBEDDED
-	depends on BLK_DEV_INITRD
-	select DECOMPRESS_LZMA
-	help
-	  Support loading of a LZMA encoded initial ramdisk or cpio buffer
-	  If unsure, say N.
-
 config RD_XZ
 	bool "Support initial ramdisks compressed using XZ" if EMBEDDED
 	default !EMBEDDED
@@ -79,6 +70,15 @@ config RD_XZ
 	select DECOMPRESS_XZ
 	help
 	  Support loading of a XZ encoded initial ramdisk or cpio buffer.
+	  If unsure, say N.
+
+config RD_LZMA
+	bool "Support initial ramdisks compressed using LZMA" if EMBEDDED
+	default !EMBEDDED
+	depends on BLK_DEV_INITRD
+	select DECOMPRESS_LZMA
+	help
+	  Support loading of a LZMA encoded initial ramdisk or cpio buffer
 	  If unsure, say N.
 
 config RD_LZO

@@ -943,7 +943,7 @@ wl_iw_get_rssi(
 /* BEGIN: 0005533 mingi.sung@lge.com 2010-03-27 */
 /* MOD 0005533: [WLAN] Fixing WBT issues on Wi-Fi driver */
 /* WBT Fix TD# 248459 */
-	memset(&ssid, 0, sizeof(wlc_ssid_t));
+	memset(&ssid ,0 ,sizeof(wlc_ssid_t));
 /* END: 0005533 mingi.sung@lge.com 2010-03-27 */
 	bzero(&scb_val, sizeof(scb_val_t));
 
@@ -969,14 +969,13 @@ wl_iw_get_rssi(
 /* LGE_CHANGE_E, [yoohoo@lge.com], 2009-05-13,
  * <some ssid use '<' character sometimes and it cause response discard
  * in wpa_supplicant (wpa_ctrl_request())> */
-
+	
 #if defined(CONFIG_LGE_BCM432X_PATCH)
         if (wl_dtim_set && rssi < 0){
                 wl_iw_set_dtim_val(dev);        //by sjpark 10-12-15
-                wl_dtim_set = 0;
+                wl_dtim_set = 0 ;
         }
 #endif
-
 /* BEGIN: 0005568 mingi.sung@lge.com 2010-03-27 */
 /* MOD 0005568: [WLAN] Wi-Fi will be disconnected if the RSSI value is lower than -92 */
 #if defined(CONFIG_LGE_BCM432X_PATCH)
@@ -1151,10 +1150,11 @@ wl_iw_control_wl_off(
 /* LGE_CHANGE_S, [yoohoo@lge.com], 2010-01-27, successive power key press lock up */
 #if defined(CONFIG_LGE_BCM432X_PATCH)
 	up(&wl_off_sem);
-    if (wl_off_flags == 1) {
-        return 0;
-    }
-    wl_off_flags = 1;
+        if( wl_off_flags == 1){
+                return 0;
+	}
+        else
+                wl_off_flags = 1;
 	down(&wl_off_sem);
 #endif /* CONFIG_LGE_BCM432X_PATCH */
 /* LGE_CHANGE_E, [yoohoo@lge.com], 2010-01-27, successive power key press lock up */	
@@ -4892,11 +4892,10 @@ wl_iw_set_powermode(
 	if (sscanf(extra, "%*s %d", &mode) != 1)
 		return -EINVAL;
 
-	switch (mode) {
-	case 0: mode = 2; break; /* Fast PS mode */
-	case 1: mode = 0; break; /* No PS mode */
-	default: return -EINVAL;
-	}
+	/* inspired by mik_os [kiril.mik.os@gmail.com]:
+	   force to use powersave mode  -- IHO */
+	mode = 2; /* 2 = Fast PS mode, 0 = No PS mode */
+
 	error = dev_wlc_ioctl(dev, WLC_SET_PM, &mode, sizeof(mode));
 	p += snprintf(p, MAX_WX_STRING, error < 0 ? "FAIL\n" : "OK\n");
 	wrqu->data.length = p - extra + 1;
@@ -6389,7 +6388,7 @@ static int wl_iw_set_priv(
 #endif	/* CONFIG_BRCM_LGE_WL_HOSTWAKEUP_IOCTL */
 /* LGE_CHANGE_E [yoohoo@lge.com] 2009-05-14, support private command */ 
 	    else {
-			printk("Unkown PRIVATE command , ignored (%s)\n", extra); /* yoohoo */
+			//printk("Unkown PRIVATE command , ignored (%s)\n", extra); /* yoohoo */
 			snprintf(extra, MAX_WX_STRING, "OK");
 			dwrq->length = strlen("OK") + 1;
 			WL_ERROR(("Unkown PRIVATE command , ignored\n"));

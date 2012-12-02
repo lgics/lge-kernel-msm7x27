@@ -407,7 +407,7 @@ struct android_usb_platform_data android_usb_pdata = {
 static int __init board_serialno_setup(char *serialno)
 {
 	int i;
-	char *src = serialno;
+  	char *src = serialno;
 
 	/* create a fake MAC address from our serial number.
 	 * first byte is 0x02 to signify locally administered.
@@ -415,7 +415,7 @@ static int __init board_serialno_setup(char *serialno)
 	rndis_pdata.ethaddr[0] = 0x02;
 	for (i = 0; *src; i++) {
 		/* XOR the USB serial across the remaining bytes */
-		rndis_pdata.ethaddr[i % (ETH_ALEN - 1) + 1] ^= *src++;
+		 rndis_pdata.ethaddr[i % (ETH_ALEN - 1) + 1] ^= *src++;
 	}
 
 	android_usb_pdata.serial_number = serialno;
@@ -424,7 +424,7 @@ static int __init board_serialno_setup(char *serialno)
 __setup("androidboot.serialno=", board_serialno_setup);
 
 
-#endif /* CONFIG_USB_G_ANDROID */
+#endif /* CONFIG_USB_ANDROID */
 
 static struct platform_device *devices[] __initdata = {
 	&msm_device_smd,
@@ -447,7 +447,7 @@ static struct msm_acpu_clock_platform_data msm7x2x_clock_data = {
 	.acpu_switch_time_us = 50,
 	.max_speed_delta_khz = 400000,
 	.vdd_switch_time_us = 62,
-	.max_axi_khz = 160000,
+	.max_axi_khz = 200000,
 };
 
 void msm_serial_debug_init(unsigned int base, int irq,
@@ -471,7 +471,7 @@ static void msm7x27_wlan_init(void)
  * 2010-04-18, cleaneye.kim@lge.com
  */
 unsigned pmem_fb_size = 	0x96000;
-unsigned pmem_adsp_size =	0x900000;
+unsigned pmem_adsp_size =	0x9DE000;
 
 static void __init msm7x2x_init(void)
 {
@@ -486,7 +486,7 @@ static void __init msm7x2x_init(void)
 #endif
 
 	if (cpu_is_msm7x27())
-		msm7x2x_clock_data.max_axi_khz = 422400;
+		msm7x2x_clock_data.max_axi_khz = 200000;
 
 	msm_acpu_clock_init(&msm7x2x_clock_data);
 

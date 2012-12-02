@@ -25,15 +25,93 @@
 #include <linux/genhd.h>
 #include <linux/highmem.h>
 #include <linux/slab.h>
-#include <linux/lzo.h>
 #include <linux/string.h>
 #include <linux/vmalloc.h>
 
 #include "zram_drv.h"
 
+#if defined(CONFIG_ZRAM_LZO)
+#include <linux/lzo.h>
+#ifdef MULTIPLE_COMPRESSORS
+static const struct zram_compressor lzo_compressor = {
+.name = "LZO",
+.workmem_bytes = LZO1X_MEM_COMPRESS,
+.compress = &lzo1x_1_compress,
+.decompress = &lzo1x_decompress_safe
+};
+#else /* !MULTIPLE_COMPRESSORS */
+#define WMSIZE LZO1X_MEM_COMPRESS
+#define COMPRESS(s, sl, d, dl, wm) \
+lzo1x_1_compress(s, sl, d, dl, wm)
+#define DECOMPRESS(s, sl, d, dl) \
+lzo1x_decompress_safe(s, sl, d, dl)
+#endif /* !MULTIPLE_COMPRESSORS */
+#endif /* defined(CONFIG_ZRAM_LZO) */
+
+#if defined(CONFIG_ZRAM_SNAPPY)
+#include "../snappy/csnappy.h" /* if built in drivers/staging */
+#define WMSIZE_ORDER ((PAGE_SHIFT > 14) ? (15) : (PAGE_SHIFT+1))
+static int
+snappy_compress_(
+const unsigned char *src,
+size_t src_len,
+unsigned char *dst,
+size_t *dst_len,
+void *workmem)
+{
+const unsigned char *end = csnappy_compress_fragment(
+src, (uint32_t)src_len, dst, workmem, WMSIZE_ORDER);
+*dst_len = end - dst;
+return 0;
+}
+static int
+snappy_decompress_(
+const unsigned char *src,
+size_t src_len,
+unsigned char *dst,
+size_t *dst_len)
+{
+uint32_t dst_len_ = (uint32_t)*dst_len;
+int ret = csnappy_decompress_noheader(src, src_len, dst, &dst_len_);
+*dst_len = (size_t)dst_len_;
+return ret;
+}
+#ifdef MULTIPLE_COMPRESSORS
+static const struct zram_compressor snappy_compressor = {
+.name = "SNAPPY",
+.workmem_bytes = (1 << WMSIZE_ORDER),
+.compress = &snappy_compress_,
+.decompress = &snappy_decompress_
+};
+#else /* !MULTIPLE_COMPRESSORS */
+#define WMSIZE (1 << WMSIZE_ORDER)
+#define COMPRESS(s, sl, d, dl, wm) \
+snappy_compress_(s, sl, d, dl, wm)
+#define DECOMPRESS(s, sl, d, dl) \
+snappy_decompress_(s, sl, d, dl)
+#endif /* !MULTIPLE_COMPRESSORS */
+#endif /* defined(CONFIG_ZRAM_SNAPPY) */
+
+#ifdef MULTIPLE_COMPRESSORS
+const struct zram_compressor * const zram_compressors[] = {
+#if defined(CONFIG_ZRAM_LZO)
+&lzo_compressor,
+#endif
+#if defined(CONFIG_ZRAM_SNAPPY)
+&snappy_compressor,
+#endif
+NULL
+};
+#define WMSIZE (zram->compressor->workmem_bytes)
+#define COMPRESS(s, sl, d, dl, wm) \
+(zram->compressor->compress(s, sl, d, dl, wm))
+#define DECOMPRESS(s, sl, d, dl) \
+(zram->compressor->decompress(s, sl, d, dl))
+#endif /* MULTIPLE_COMPRESSORS */
+
 /* Globals */
 static int zram_major;
-struct zram *zram_devices;
+struct zram *devices;
 
 /* Module params (documentation at end) */
 unsigned int num_devices;
@@ -173,24 +251,6 @@ out:
 	zram->table[index].offset = 0;
 }
 
-static void zram_discard(struct zram *zram, struct bio *bio)
-{
-	u32 i, npages, index;
-
-	if (unlikely(!zram->init_done))
-		goto out;
-		
-	npages = bio->bi_size / PAGE_SIZE;
-	index = bio->bi_sector >> SECTORS_PER_PAGE_SHIFT;
-
-	for (i = 0; i < npages; i++)
-		zram_free_page(zram, index++);
-
-out:
-	zram_stat64_inc(zram, &zram->stats.discard);
-	bio_endio(bio, 0);
-}
-
 static void handle_zero_page(struct page *page)
 {
 	void *user_mem;
@@ -271,8 +331,7 @@ static int zram_read(struct zram *zram, struct bio *bio)
 		cmem = kmap_atomic(zram->table[index].page, KM_USER1) +
 				zram->table[index].offset;
 
-		ret = lzo1x_decompress_safe(
-			cmem + sizeof(*zheader),
+		ret = DECOMPRESS(cmem + sizeof(*zheader),
 			xv_get_object_size(cmem) - sizeof(*zheader),
 			user_mem, &clen);
 
@@ -280,7 +339,7 @@ static int zram_read(struct zram *zram, struct bio *bio)
 		kunmap_atomic(cmem, KM_USER1);
 
 		/* Should NEVER happen. Return bio error if it does. */
-		if (unlikely(ret != LZO_E_OK)) {
+		if (unlikely(ret)) {
 			pr_err("Decompression failed! err=%d, page=%u\n",
 				ret, index);
 			zram_stat64_inc(zram, &zram->stats.failed_reads);
@@ -345,17 +404,10 @@ static int zram_write(struct zram *zram, struct bio *bio)
 			continue;
 		}
 
-		ret = lzo1x_1_compress(user_mem, PAGE_SIZE, src, &clen,
-					zram->compress_workmem);
+		COMPRESS(user_mem, PAGE_SIZE, src, &clen,
+			zram->compress_workmem);
 
 		kunmap_atomic(user_mem, KM_USER0);
-
-		if (unlikely(ret != LZO_E_OK)) {
-			mutex_unlock(&zram->lock);
-			pr_err("Compression failed! err=%d\n", ret);
-			zram_stat64_inc(zram, &zram->stats.failed_writes);
-			goto out;
-		}
 
 		/*
 		 * Page is incompressible. Store it as-is (uncompressed)
@@ -463,11 +515,6 @@ static int zram_make_request(struct request_queue *queue, struct bio *bio)
 		return 0;
 	}
 
-	if (unlikely(bio->bi_rw & REQ_DISCARD)) {
-		zram_discard(zram, bio);
-		return 0;
-	}
-
 	switch (bio_data_dir(bio)) {
 	case READ:
 		ret = zram_read(zram, bio);
@@ -539,7 +586,7 @@ int zram_init_device(struct zram *zram)
 
 	zram_set_disksize(zram, totalram_pages << PAGE_SHIFT);
 
-	zram->compress_workmem = kzalloc(LZO1X_MEM_COMPRESS, GFP_KERNEL);
+	zram->compress_workmem = kzalloc(WMSIZE, GFP_KERNEL);
 	if (!zram->compress_workmem) {
 		pr_err("Error allocating compressor working memory!\n");
 		ret = -ENOMEM;
@@ -590,8 +637,7 @@ fail:
 	return ret;
 }
 
-#if defined(CONFIG_SWAP_FREE_NOTIFY)
-static void zram_slot_free_notify(struct block_device *bdev, unsigned long index)
+void zram_slot_free_notify(struct block_device *bdev, unsigned long index)
 {
 	struct zram *zram;
 
@@ -599,12 +645,9 @@ static void zram_slot_free_notify(struct block_device *bdev, unsigned long index
 	zram_free_page(zram, index);
 	zram_stat64_inc(zram, &zram->stats.notify_free);
 }
-#endif
 
 static const struct block_device_operations zram_devops = {
-#if defined(CONFIG_SWAP_FREE_NOTIFY)
 	.swap_slot_free_notify = zram_slot_free_notify,
-#endif
 	.owner = THIS_MODULE
 };
 
@@ -647,6 +690,11 @@ static int create_device(struct zram *zram, int device_id)
 	/* Actual capacity set using syfs (/sys/block/zram<id>/disksize */
 	set_capacity(zram->disk, 0);
 
+	/* Can be changed using sysfs (/sys/block/zram<id>/compressor) */
+	#ifdef MULTIPLE_COMPRESSORS
+		zram->compressor = zram_compressors[0];
+	#endif
+
 	/*
 	 * To ensure that we always get PAGE_SIZE aligned
 	 * and n*PAGE_SIZED sized I/O requests.
@@ -655,10 +703,6 @@ static int create_device(struct zram *zram, int device_id)
 	blk_queue_logical_block_size(zram->disk->queue, PAGE_SIZE);
 	blk_queue_io_min(zram->disk->queue, PAGE_SIZE);
 	blk_queue_io_opt(zram->disk->queue, PAGE_SIZE);
-
-	zram->disk->queue->limits.discard_granularity = PAGE_SIZE;
-	zram->disk->queue->limits.max_discard_sectors = UINT_MAX;
-	queue_flag_set_unlocked(QUEUE_FLAG_DISCARD, zram->disk->queue);
 
 	add_disk(zram->disk);
 
@@ -718,14 +762,14 @@ static int __init zram_init(void)
 
 	/* Allocate the device array and initialize each one */
 	pr_info("Creating %u devices ...\n", num_devices);
-	zram_devices = kzalloc(num_devices * sizeof(struct zram), GFP_KERNEL);
-	if (!zram_devices) {
+	devices = kzalloc(num_devices * sizeof(struct zram), GFP_KERNEL);
+	if (!devices) {
 		ret = -ENOMEM;
 		goto unregister;
 	}
 
 	for (dev_id = 0; dev_id < num_devices; dev_id++) {
-		ret = create_device(&zram_devices[dev_id], dev_id);
+		ret = create_device(&devices[dev_id], dev_id);
 		if (ret)
 			goto free_devices;
 	}
@@ -734,8 +778,8 @@ static int __init zram_init(void)
 
 free_devices:
 	while (dev_id)
-		destroy_device(&zram_devices[--dev_id]);
-	kfree(zram_devices);
+		destroy_device(&devices[--dev_id]);
+	kfree(devices);
 unregister:
 	unregister_blkdev(zram_major, "zram");
 out:
@@ -748,7 +792,7 @@ static void __exit zram_exit(void)
 	struct zram *zram;
 
 	for (i = 0; i < num_devices; i++) {
-		zram = &zram_devices[i];
+		zram = &devices[i];
 
 		destroy_device(zram);
 		if (zram->init_done)
@@ -757,7 +801,7 @@ static void __exit zram_exit(void)
 
 	unregister_blkdev(zram_major, "zram");
 
-	kfree(zram_devices);
+	kfree(devices);
 	pr_debug("Cleanup done!\n");
 }
 

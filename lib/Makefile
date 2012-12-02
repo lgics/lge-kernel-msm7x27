@@ -10,9 +10,9 @@ endif
 lib-y := ctype.o string.o vsprintf.o cmdline.o \
 	 rbtree.o radix-tree.o dump_stack.o \
 	 idr.o int_sqrt.o extable.o prio_tree.o \
-	 sha1.o irq_regs.o reciprocal_div.o argv_split.o \
+	 jhash.o sha1.o irq_regs.o reciprocal_div.o argv_split.o \
 	 proportions.o prio_heap.o ratelimit.o show_mem.o \
-	 is_single_threaded.o plist.o decompress.o flex_array.o  \
+         is_single_threaded.o plist.o decompress.o flex_array.o  \
          memcopy.o memory_alloc.o genalloc.o \
 
 lib-$(CONFIG_MMU) += ioremap.o
@@ -71,7 +71,6 @@ obj-$(CONFIG_REED_SOLOMON) += reed_solomon/
 obj-$(CONFIG_LZO_COMPRESS) += lzo/
 obj-$(CONFIG_LZO_DECOMPRESS) += lzo/
 obj-$(CONFIG_XZ_DEC) += xz/
-
 
 lib-$(CONFIG_DECOMPRESS_GZIP) += decompress_inflate.o
 CFLAGS_REMOVE_decompress_bunzip2.o = -Werror

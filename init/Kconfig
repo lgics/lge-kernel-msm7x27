@@ -124,7 +124,7 @@ config HAVE_KERNEL_LZMA
 	bool
 
 config HAVE_KERNEL_XZ
-	bool
+        bool
 
 config HAVE_KERNEL_LZO
 	bool
@@ -178,19 +178,19 @@ config KERNEL_LZMA
 	  smaller with LZMA in comparison to gzip.
 
 config KERNEL_XZ
-	bool "XZ"
-	depends on HAVE_KERNEL_XZ
-	help
-	  XZ uses the LZMA2 algorithm and instruction set specific
-	  BCJ filters which can improve compression ratio of executable
-	  code. The size of the kernel is about 30% smaller with XZ in
-	  comparison to gzip. On architectures for which there is a BCJ
-	  filter (i386, x86_64, ARM, IA-64, PowerPC, and SPARC), XZ
-	  will create a few percent smaller kernel than plain LZMA.
+  	bool "XZ"
+  	depends on HAVE_KERNEL_XZ
+  	help
+  	  XZ uses the LZMA2 algorithm and instruction set specific
+  	  BCJ filters which can improve compression ratio of executable
+  	  code. The size of the kernel is about 30% smaller with XZ in
+  	  comparison to gzip. On architectures for which there is a BCJ
+  	  filter (i386, x86_64, ARM, IA-64, PowerPC, and SPARC), XZ
+  	  will create a few percent smaller kernel than plain LZMA.
 
-	  The speed is about the same as with LZMA: The decompression
-	  speed of XZ is better than that of bzip2 but worse than gzip
-	  and LZO. Compression is slow.
+  	  The speed is about the same as with LZMA: The decompression
+  	  speed of XZ is better than that of bzip2 but worse than gzip
+  	  and LZO. Compression is slow.
 
 config KERNEL_LZO
 	bool "LZO"
@@ -665,6 +665,18 @@ config DEBUG_BLK_CGROUP
 	files in a cgroup which can be useful for debugging.
 
 endif # CGROUPS
+
+config SCHED_AUTOGROUP
+	bool "Automatic process group scheduling"
+	select CGROUPS
+	select CGROUP_SCHED
+	select FAIR_GROUP_SCHED
+	help
+	  This option optimizes the scheduler for common desktop workloads by
+	  automatically creating and populating task groups.  This separation
+	  of workloads isolates aggressive CPU burners (like build jobs) from
+	  desktop applications.  Task group autogeneration is currently based
+	  upon task session.
 
 config MM_OWNER
 	bool
@@ -1249,14 +1261,6 @@ config MODULE_FORCE_LOAD
 	  Allow loading of modules without version information (ie. modprobe
 	  --force).  Forced module loading sets the 'F' (forced) taint flag and
 	  is usually a really bad idea.
-
-config MODULE_FORCE_VERMAGIC
-	bool "Allow forced loading of modules with bad vermagic"
-	default n
-	depends on MODULE_FORCE_LOAD
-	help
-	  Allow loading of modules with version information that does not match
-	  the currently running kernel. This is very bad.
 
 config MODULE_UNLOAD
 	bool "Module unloading"

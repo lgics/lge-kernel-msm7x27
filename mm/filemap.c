@@ -24,7 +24,6 @@
 #include <linux/file.h>
 #include <linux/uio.h>
 #include <linux/hash.h>
-#include <linux/cleancache.h>
 #include <linux/writeback.h>
 #include <linux/backing-dev.h>
 #include <linux/pagevec.h>
@@ -36,7 +35,6 @@
 #include <linux/memcontrol.h>
 #include <linux/mm_inline.h> /* for page_is_file_cache() */
 #include "internal.h"
-
 
 /*
  * FIXME: remove all knowledge of the buffer layer from the core VM
@@ -120,11 +118,6 @@
 void __remove_from_page_cache(struct page *page)
 {
 	struct address_space *mapping = page->mapping;
-
-        if (PageUptodate(page))
-		cleancache_put_page(page);
-	else
-		cleancache_flush_page(mapping, page);
 
 	radix_tree_delete(&mapping->page_tree, page->index);
 	page->mapping = NULL;
@@ -303,7 +296,7 @@ int filemap_fdatawait_range(struct address_space *mapping, loff_t start_byte,
 				continue;
 
 			wait_on_page_writeback(page);
-			if (PageError(page))
+			if (TestClearPageError(page))
 				ret = -EIO;
 		}
 		pagevec_release(&pvec);
@@ -1688,7 +1681,7 @@ repeat:
 		page = __page_cache_alloc(gfp | __GFP_COLD);
 		if (!page)
 			return ERR_PTR(-ENOMEM);
-		err = add_to_page_cache_lru(page, mapping, index, GFP_KERNEL);
+		err = add_to_page_cache_lru(page, mapping, index, gfp);
 		if (unlikely(err)) {
 			page_cache_release(page);
 			if (err == -EEXIST)
@@ -1785,10 +1778,7 @@ static struct page *wait_on_page_read(struct page *page)
  * @gfp:	the page allocator flags to use if allocating
  *
  * This is the same as "read_mapping_page(mapping, index, NULL)", but with
- * any new page allocations done using the specified allocation flags. Note
- * that the Radix tree operations will still use GFP_KERNEL, so you can't
- * expect to do this atomically or anything like that - but you can pass in
- * other page requirements.
+ * any new page allocations done using the specified allocation flags. 
  *
  * If the page does not get brought uptodate, return -EIO.
  */

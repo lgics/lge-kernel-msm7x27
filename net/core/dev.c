@@ -131,7 +131,6 @@
 #include <linux/random.h>
 #include <trace/events/napi.h>
 #include <linux/pci.h>
-#include <linux/iface_stat.h>
 
 #include "net-sysfs.h"
 
@@ -4823,9 +4822,6 @@ static void rollback_registered_many(struct list_head *head)
 	synchronize_net();
 
 	list_for_each_entry(dev, head, unreg_list) {
-		/* Store stats for this device in persistent iface_stat */
-		iface_stat_update(dev);
-
 		/* Shutdown queueing discipline. */
 		dev_shutdown(dev);
 
@@ -5119,17 +5115,15 @@ int init_dummy_netdev(struct net_device *dev)
 	 */
 	dev->reg_state = NETREG_DUMMY;
 
+	/* initialize the ref count */
+	atomic_set(&dev->refcnt, 1);
+
 	/* NAPI wants this */
 	INIT_LIST_HEAD(&dev->napi_list);
 
 	/* a dummy interface is started by default */
 	set_bit(__LINK_STATE_PRESENT, &dev->state);
 	set_bit(__LINK_STATE_START, &dev->state);
-
-	/* Note : We dont allocate pcpu_refcnt for dummy devices,
-	 * because users of this 'device' dont need to change
-	 * its refcount.
-	 */
 
 	return 0;
 }
@@ -5172,16 +5166,6 @@ out:
 }
 EXPORT_SYMBOL(register_netdev);
 
-int netdev_refcnt_read(const struct net_device *dev)
-{
-	int i, refcnt = 0;
-
-	for_each_possible_cpu(i)
-		refcnt += *per_cpu_ptr(dev->pcpu_refcnt, i);
-	return refcnt;
-}
-EXPORT_SYMBOL(netdev_refcnt_read);
-
 /*
  * netdev_wait_allrefs - wait until all references are gone.
  *
@@ -5196,14 +5180,11 @@ EXPORT_SYMBOL(netdev_refcnt_read);
 static void netdev_wait_allrefs(struct net_device *dev)
 {
 	unsigned long rebroadcast_time, warning_time;
-	int refcnt;
 
 	linkwatch_forget_dev(dev);
 
 	rebroadcast_time = warning_time = jiffies;
-	refcnt = netdev_refcnt_read(dev);
-
-	while (refcnt != 0) {
+	while (atomic_read(&dev->refcnt) != 0) {
 		if (time_after(jiffies, rebroadcast_time + 1 * HZ)) {
 			rtnl_lock();
 
@@ -5230,13 +5211,11 @@ static void netdev_wait_allrefs(struct net_device *dev)
 
 		msleep(250);
 
-		refcnt = netdev_refcnt_read(dev);
-
 		if (time_after(jiffies, warning_time + 10 * HZ)) {
 			printk(KERN_EMERG "unregister_netdevice: "
 			       "waiting for %s to become free. Usage "
 			       "count = %d\n",
-			       dev->name, refcnt);
+			       dev->name, atomic_read(&dev->refcnt));
 			warning_time = jiffies;
 		}
 	}
@@ -5294,7 +5273,7 @@ void netdev_run_todo(void)
 		netdev_wait_allrefs(dev);
 
 		/* paranoia */
-		BUG_ON(netdev_refcnt_read(dev));
+		BUG_ON(atomic_read(&dev->refcnt));
 		WARN_ON(dev->ip_ptr);
 		WARN_ON(dev->ip6_ptr);
 		WARN_ON(dev->dn_ptr);
@@ -5435,12 +5414,8 @@ struct net_device *alloc_netdev_mq(int sizeof_priv, const char *name,
 	dev = PTR_ALIGN(p, NETDEV_ALIGN);
 	dev->padded = (char *)dev - (char *)p;
 
-	dev->pcpu_refcnt = alloc_percpu(int);
-	if (!dev->pcpu_refcnt)
+	if (dev_addr_init(dev))
 		goto free_rx;
-
-       if (dev_addr_init(dev))
-               goto free_pcpu;
 
 	dev_mc_init(dev);
 	dev_uc_init(dev);
@@ -5476,8 +5451,6 @@ free_rx:
 free_tx:
 #endif
 	kfree(tx);
-free_pcpu:
-	free_percpu(dev->pcpu_refcnt);
 free_p:
 	kfree(p);
 	return NULL;
@@ -5508,9 +5481,6 @@ void free_netdev(struct net_device *dev)
 
 	list_for_each_entry_safe(p, n, &dev->napi_list, dev_list)
 		netif_napi_del(p);
-
-	free_percpu(dev->pcpu_refcnt);
-	dev->pcpu_refcnt = NULL;
 
 	/*  Compatibility with error handling in drivers */
 	if (dev->reg_state == NETREG_UNINITIALIZED) {

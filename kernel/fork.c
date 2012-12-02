@@ -171,6 +171,7 @@ EXPORT_SYMBOL(free_task);
 static inline void free_signal_struct(struct signal_struct *sig)
 {
 	taskstats_tgid_free(sig);
+	sched_autogroup_exit(sig);
 	kmem_cache_free(signal_cachep, sig);
 }
 
@@ -916,6 +917,7 @@ static int copy_signal(unsigned long clone_flags, struct task_struct *tsk)
 	posix_cpu_timers_init_group(sig);
 
 	tty_audit_fork(sig);
+	sched_autogroup_fork(sig);
 
 	sig->oom_adj = current->signal->oom_adj;
 
@@ -1318,7 +1320,7 @@ bad_fork_cleanup_mm:
 		mmput(p->mm);
 bad_fork_cleanup_signal:
 	if (!(clone_flags & CLONE_THREAD))
-		free_signal_struct(p->signal);
+		put_signal_struct(p->signal);
 bad_fork_cleanup_sighand:
 	__cleanup_sighand(p->sighand);
 bad_fork_cleanup_fs:
@@ -1377,23 +1379,6 @@ struct task_struct * __cpuinit fork_idle(int cpu)
 
 	return task;
 }
-
-/* Notifier list called when a task struct is freed */
-static ATOMIC_NOTIFIER_HEAD(task_fork_notifier);
-
-int task_fork_register(struct notifier_block *n)
-{
-return atomic_notifier_chain_register(&task_fork_notifier, n);
-}
-EXPORT_SYMBOL(task_fork_register);
-
-int task_fork_unregister(struct notifier_block *n)
-{
-return atomic_notifier_chain_unregister(&task_fork_notifier, n);
-}
-EXPORT_SYMBOL(task_fork_unregister);
-
-
 
 /*
  *  Ok, this is the main fork-routine.

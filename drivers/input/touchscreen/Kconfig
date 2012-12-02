@@ -714,6 +714,42 @@ config TOUCHSCREEN_MCS6000
 	  If unsure, say N.
 
 	  To compile this driver as a module, choose M here: the
-	  module will be called tsc2007.
+	  module will be called mcs6000_ts.
+
+config TOUCHSCREEN_MCS6000_ROQU
+        default n  
+        tristate "MCS6000 touchscreens from ROQU"
+        depends on I2C
+        help
+          Say Y here if you have a MCS6000 touchscreen.
+
+          If unsure, say N.
+
+          To compile this driver as a module, choose M here: the
+          module will be called mcs6000_ts.
+
+config TOUCHSCREEN_MCS6000_TA
+        default n
+        tristate "thachtunganh MCS6000 touchscreen driver for LG P500"
+        depends on I2C
+        help
+          Say Y here if you have a LG P500 Optimus One mobile phone.
+
+          If unsure, say N.
+
+          To compile this driver as a module, choose M here: the
+          module will be called mcs6000_ts.
+
+config TOUCHSCREEN_MCS6000_CAVEMAN
+        default n  
+        tristate "MCS6000 touchscreens from Der Caveman"
+        depends on I2C
+        help
+          Say Y here if you have a MCS6000 touchscreen.
+
+          If unsure, say N.
+
+          To compile this driver as a module, choose M here: the
+          module will be called mcs6000_ts.
 
 endif

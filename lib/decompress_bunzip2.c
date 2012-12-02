@@ -160,7 +160,7 @@ static int INIT get_next_block(struct bunzip_data *bd)
 	int *base = NULL;
 	int *limit = NULL;
 	int dbufCount, nextSym, dbufSize, groupCount, selector,
-		i, j, k, t, runPos, symCount, symTotal, nSelectors, *byteCount;
+	  i, j, k, t, runPos, symCount, symTotal, nSelectors, *byteCount;
 	unsigned char uc, *symToByte, *mtfSymbol, *selectors;
 	unsigned int *dbuf, origPtr;
 

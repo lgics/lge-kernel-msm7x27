@@ -546,7 +546,7 @@ static int __devinit mddi_sharp_lcd_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static struct platform_driver this_driver __refdata = {
+static struct platform_driver this_driver = {
 	.probe  = mddi_sharp_lcd_probe,
 	.driver = {
 		.name   = "mddi_sharp_hvga",
@@ -577,14 +577,14 @@ static int mddi_sharp_lcd_init_e720(void)
 		pinfo->bpp = 16;
 	
 		// vsync config
-		pinfo->lcd.vsync_enable = FALSE;
+		pinfo->lcd.vsync_enable = TRUE;
 		pinfo->lcd.refx100 = 
                         (mddi_sharp_rows_per_second * 100) /
                         mddi_sharp_rows_per_refresh;
 		pinfo->lcd.v_back_porch = 200;
 		pinfo->lcd.v_front_porch = 200;
 		pinfo->lcd.v_pulse_width = 30;
-		pinfo->lcd.hw_vsync_mode = FALSE;
+		pinfo->lcd.hw_vsync_mode = TRUE;
 		pinfo->lcd.vsync_notifier_period = (1 * HZ);
 
 		pinfo->bl_max = 4;

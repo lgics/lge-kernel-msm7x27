@@ -1087,7 +1087,7 @@ static struct dev_pm_ops ami304_pm_ops = {
 };
 #endif
 
-static struct i2c_driver ami304_i2c_driver __refdata = {
+static struct i2c_driver ami304_i2c_driver = {
 	.probe		= ami304_probe,
 	.remove		= ami304_remove,
 	.id_table	= motion_ids,

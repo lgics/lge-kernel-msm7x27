@@ -90,7 +90,8 @@ struct android_usb_function {
 
 	/* Optional: called when the configuration is removed */
 	void (*unbind_config)(struct android_usb_function *, struct usb_configuration *);
-	/* Optional: handle ctrl requests before the device is configured */
+	/* Optional: handle ctrl requests before the device is configured
+	 *	and/or before the function is enabled */
 	int (*ctrlrequest)(struct android_usb_function *,
 					struct usb_composite_dev *,
 					const struct usb_ctrlrequest *);
@@ -649,8 +650,8 @@ static struct android_usb_function accessory_function = {
 static struct android_usb_function *supported_functions[] = {
 	&adb_function,
 	&acm_function,
-//	&mtp_function,
-//	&ptp_function,
+	&mtp_function,
+	&ptp_function,
 	&rndis_function,
 	&mass_storage_function,
 	&accessory_function,
@@ -1103,12 +1104,6 @@ android_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *c)
 				break;
 		}
 	}
-
-	/* Special case the accessory function.
-	 * It needs to handle control requests before it is enabled.
-	 */
-	if (value < 0)
-		value = acc_ctrlrequest(cdev, c);
 
 	if (value < 0)
 		value = composite_setup(gadget, c);

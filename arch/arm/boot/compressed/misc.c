@@ -18,9 +18,17 @@
 
 unsigned int __machine_arch_type;
 
+#define _LINUX_STRING_H_
+
 #include <linux/compiler.h>	/* for inline */
-#include <linux/types.h>
+#include <linux/types.h>	/* for size_t */
+#include <linux/stddef.h>	/* for NULL */
 #include <linux/linkage.h>
+#include <asm/string.h>
+
+#ifdef STANDALONE_DEBUG
+#define putstr printf
+#else
 
 static void putstr(const char *ptr);
 extern void error(char *x);
@@ -106,6 +114,42 @@ static void putstr(const char *ptr)
 	flush();
 }
 
+#endif
+
+void *memcpy(void *__dest, __const void *__src, size_t __n)
+{
+	int i = 0;
+	unsigned char *d = (unsigned char *)__dest, *s = (unsigned char *)__src;
+
+	for (i = __n >> 3; i > 0; i--) {
+		*d++ = *s++;
+		*d++ = *s++;
+		*d++ = *s++;
+		*d++ = *s++;
+		*d++ = *s++;
+		*d++ = *s++;
+		*d++ = *s++;
+		*d++ = *s++;
+	}
+
+	if (__n & 1 << 2) {
+		*d++ = *s++;
+		*d++ = *s++;
+		*d++ = *s++;
+		*d++ = *s++;
+	}
+
+	if (__n & 1 << 1) {
+		*d++ = *s++;
+		*d++ = *s++;
+	}
+
+	if (__n & 1)
+		*d++ = *s++;
+
+	return __dest;
+}
+
 /*
  * gzip declarations
  */
@@ -139,6 +183,7 @@ asmlinkage void __div0(void)
 
 extern int do_decompress(u8 *input, int len, u8 *output, void (*error)(char *x));
 
+#ifndef STANDALONE_DEBUG
 
 void
 decompress_kernel(unsigned long output_start, unsigned long free_mem_ptr_p,
@@ -156,9 +201,24 @@ decompress_kernel(unsigned long output_start, unsigned long free_mem_ptr_p,
 
 	putstr("Uncompressing Linux...");
 	ret = do_decompress(input_data, input_data_end - input_data,
-			    output_data, error);
+		output_data, error);
 	if (ret)
 		error("decompressor returned an error");
 	else
 		putstr(" done, booting the kernel.\n");
 }
+#else
+
+char output_buffer[1500*1024];
+
+int main()
+{
+	output_data = output_buffer;
+
+	putstr("Uncompressing Linux...");
+	decompress(input_data, input_data_end - input_data,
+			NULL, NULL, output_data, NULL, error);
+	putstr("done.\n");
+	return 0;
+}
+#endif

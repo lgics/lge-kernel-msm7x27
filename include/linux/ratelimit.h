@@ -39,4 +39,31 @@ static inline void ratelimit_state_init(struct ratelimit_state *rs,
 extern int ___ratelimit(struct ratelimit_state *rs, const char *func);
 #define __ratelimit(state) ___ratelimit(state, __func__)
 
+#ifdef CONFIG_PRINTK
+
+#define WARN_ON_RATELIMIT(condition, state)                     \
+                WARN_ON((condition) && __ratelimit(state))
+
+#define __WARN_RATELIMIT(condition, state, format...)           \
+({                                                              \
+        int rtn = 0;                                            \
+        if (unlikely(__ratelimit(state)))                       \
+                rtn = WARN(condition, format);                  \
+        rtn;                                                    \
+})
+
+#define __WARN_RATELIMIT(condition, state, format...)           \
+({                                                              \
+       int rtn = WARN(condition, format);                      \
+        rtn;                                                    \
+})
+
+#define WARN_RATELIMIT(condition, format...)                    \
+({                                                              \
+        int rtn = WARN(condition, format);                      \
+        rtn;                                                    \
+})
+
+#endif
+
 #endif /* _LINUX_RATELIMIT_H */

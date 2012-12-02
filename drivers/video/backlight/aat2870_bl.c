@@ -420,13 +420,10 @@ EXPORT_SYMBOL(aat28xx_ldo_set_level);
 
 static void aat28xx_power_internal(struct aat28xx_driver_data *drvdata, int on)
 {
-#ifdef CONFIG_MACH_MSM7X27_THUNDERG
-    return;
-#endif
-#ifdef CONFIG_MACH_MSM7X27_ALESSI
+#if defined(CONFIG_MACH_MSM7X27_THUNDERG) || defined(CONFIG_MACH_MSM7X27_ALESSI)
+	mdelay(20);
 	return;
 #endif
-
 	if(!drvdata || !drvdata->gpio)
 		return;
 
@@ -824,7 +821,7 @@ ssize_t aat28xx_show_reg(struct device *dev, struct device_attribute *attr, char
 {
 	struct aat28xx_driver_data *drvdata = dev_get_drvdata(dev);
 	int len = 0;
-	unsigned char val;
+	unsigned char val = 0;
 
 	len += snprintf(buf,       PAGE_SIZE,       "\nAAT2870 Registers is following..\n");
 	aat28xx_read(drvdata->client, 0x00, &val);
@@ -972,7 +969,7 @@ static int __init aat28xx_probe(struct i2c_client *i2c_dev, const struct i2c_dev
 	drvdata->version = pdata->version;
 	drvdata->initialized = pdata->initialized;
 #ifdef CONFIG_MACH_MSM7X27_ALESSI
-	drvdata->has_alc = 1; //pdata->has_alc;
+	drvdata->has_alc = 1;//pdata->has_alc;
 	drvdata->is_charging = 0;
 #endif
 

@@ -571,7 +571,7 @@ static int mddi_hitachi_lcd_on(struct platform_device *pdev)
 			sizeof(mddi_hitachi_initialize_1st)/sizeof(struct display_table));
 	display_table(mddi_hitachi_display_on_1st,
 			sizeof(mddi_hitachi_display_on_1st) / sizeof(struct display_table));
-#else
+#elif defined(CONFIG_MACH_MSM7X27_THUNDERC)
 	if (lge_bd_rev <= LGE_REV_D) {
 		EPRINTK("ThunderC ==> lge_bd_rev = %d : 1st LCD initial\n", lge_bd_rev);
 		display_table(mddi_hitachi_initialize_1st, sizeof(mddi_hitachi_initialize_1st)/sizeof(struct display_table));
@@ -614,7 +614,7 @@ static int mddi_hitachi_lcd_store_on(void)
 	mdelay(200);
 	display_table(mddi_hitachi_display_on_1st,
 			sizeof(mddi_hitachi_display_on_1st) / sizeof(struct display_table));
-#else
+#elif defined(CONFIG_MACH_MSM7X27_THUNDERC)
 	if (lge_bd_rev <= LGE_REV_D) {
 		display_table(mddi_hitachi_initialize_1st, sizeof(mddi_hitachi_initialize_1st)/sizeof(struct display_table));
 		mdelay(200);
